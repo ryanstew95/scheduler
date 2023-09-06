@@ -1,6 +1,7 @@
 import React from "react";
 import Application from "components/Application";
 import { render, waitForElement, prettyDOM, fireEvent, getByAltText, getByPlaceholderText, getByText, getAllByTestId, queryByText, getByTestId, getByDisplayValue } from "@testing-library/react";
+import axios from "axios";
 
 describe("Appointment", () => {
   it("defaults to Monday and changes the schedule when a new day is selected", () => {
@@ -113,5 +114,78 @@ const mondayDayListItem = getAllByTestId(container, "day").find(day =>
 );
 expect(getByText(mondayDayListItem, "1 spot remaining")).toBeInTheDocument();
   });
+  it("shows the save error when failing to save an appointment", async () => {
+// Mock axios to reject the save request
+axios.put.mockRejectedValueOnce(new Error("Unable to save appointment"));
+
+// Render the Application
+const { container } = render(<Application />);
+await waitForElement(() => getByText(container, "Archie Cohen"));
+
+// Find and click the "Add" button
+const appointment = getAllByTestId(container, "appointment")[0];
+fireEvent.click(getByAltText(appointment, "Add"));
+
+// Change the student name
+fireEvent.change(getByPlaceholderText(appointment, /enter student name/i), {
+  target: { value: "Lydia Miller-Jones" },
+});
+
+// Select an interviewer
+fireEvent.click(getByAltText(appointment, "Sylvia Palmer"));
+
+// Click the "Save" button
+fireEvent.click(getByText(appointment, "Save"));
+
+// Expect the "Saving" status to be displayed
+expect(getByText(appointment, "Saving")).toBeInTheDocument();
+
+// Wait for the error message to appear
+await waitForElement(() => getByText(appointment, "Could not book appointment."));
+
+// Ensure the error message is displayed
+expect(getByText(appointment, "Could not book appointment.")).toBeInTheDocument();
+
+// Click the close button on the error
+fireEvent.click(getByAltText(appointment, "Close"));
+
+// Confirm that we are back to the form
+expect(getByPlaceholderText(appointment, /enter student name/i)).toBeInTheDocument();
+  });
+it("shows the delete error when failing to delete an existing appointment", async () => {
+  // Mock axios to reject the delete request
+  axios.delete.mockRejectedValueOnce(new Error("Unable to delete appointment"));
+
+  // Render the Application
+  const { container } = render(<Application />);
+  await waitForElement(() => getByText(container, "Archie Cohen"));
+
+  // Find and click the "Delete" button on the booked appointment
+  const appointment = getAllByTestId(container, "appointment").find(
+    (appointment) => queryByText(appointment, "Archie Cohen")
+  );
+  fireEvent.click(getByAltText(appointment, "Delete"));
+
+  // Expect the confirmation message to be shown
+  expect(getByText(appointment, "Are you sure you would like to delete?")).toBeInTheDocument();
+
+  // Click the "Confirm" button on the confirmation
+  fireEvent.click(getByText(appointment, "Confirm"));
+
+  // Expect the "Deleting" status to be displayed
+  expect(getByText(appointment, "Deleting")).toBeInTheDocument();
+
+  // Wait for the error message to appear
+  await waitForElement(() => getByText(appointment, "Could not cancel appointment."));
+
+  // Ensure the error message is displayed
+  expect(getByText(appointment, "Could not cancel appointment.")).toBeInTheDocument();
+
+  // Click the close button on the error
+  fireEvent.click(getByAltText(appointment, "Close"));
+
+  // Confirm that we are back to the show appointment view
+  expect(getByText(appointment, "Archie Cohen")).toBeInTheDocument();
+});
 });
 
